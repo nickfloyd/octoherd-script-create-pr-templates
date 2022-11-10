@@ -11,7 +11,7 @@ Minimal usage
 
 ```js
 npx octoherd-script-create-pr-templates \
-  --repos nickfloyd/octokat, octokit/octokit.net \
+  --octoherd-repos nickfloyd/octokat octokit/octokit.net \
   --templateDirectory $(pwd)/templates
 ```
 
@@ -21,15 +21,16 @@ Pass all options as CLI flags to avoid user prompts
 npx octoherd-script-create-pr-templates \
   -T ghp_0123456789abcdefghjklmnopqrstuvwxyzA \
   -R "nickfloyd/*" \
-  --repos nickfloyd/octokat, octokit/octokit.net \
+  --octoherd-repos nickfloyd/octokat octokit/octokit.net \
   --templateDirectory $(pwd)/templates
 ```
+
+NOTE: This script assumes the standard "hidden" directory structure in the target repo(s) - i.e. .github/PULL_REQUEST_TEMPLATE as defined [here](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository)
 
 ## Options
 
 | option                       | type             | description                                                                                                                                                                                                                                 |
 | ---------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--repos`                    | string           | **Required.** Comma separated list of repos to create pull requests to add the PR templates (one or many)                                                                                                                                   |
 | `--template-directory`       | string           | **Required.** The location of the template directory on a local instance                                                                                                                                                                    |
 | `--octoherd-token`, `-T`     | string           | A personal access token ([create](https://github.com/settings/tokens/new?scopes=repo)). Script will create one if option is not set                                                                                                         |
 | `--octoherd-repos`, `-R`     | array of strings | One or multiple space-separated repositories in the form of `repo-owner/repo-name`. `repo-owner/*` will find all repositories for one owner. `*` will find all repositories the user has access to. Will prompt for repositories if not set |
