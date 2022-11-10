@@ -62,11 +62,11 @@ export async function script(
 
   let existingPRTemplates;
   try {
-    // check to see if a file in the .github/PULL_REQUEST_TEMPLATE/ directory with the same name already exists
+    // check to see if a file in the .github/ directory with the same name already exists
     const { data: existingFiles } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
       owner: repository.owner.login,
       repo: repository.name,
-      path: '.github/PULL_REQUEST_TEMPLATE',
+      path: '.github/pull_request_template.md',
     });
     existingPRTemplates = existingFiles;
 
@@ -90,7 +90,7 @@ export async function script(
           await octokit.request("DELETE /repos/{owner}/{repo}/contents/{path}", {
             owner: repository.owner.login,
             repo: repository.name,
-            path: `.github/PULL_REQUEST_TEMPLATE/${existingPRTemplates[i].name}`,
+            path: `.github/${existingPRTemplates[i].name}`,
             branch: branchName,
             message: `octoherd: delete ${existingPRTemplates[i].name}`,
             sha: existingPRTemplates[i].sha,
@@ -105,7 +105,7 @@ export async function script(
     await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}", {
       owner: repository.owner.login,
       repo: repository.name,
-      path: `.github/PULL_REQUEST_TEMPLATE/${template.name}`,
+      path: `.github/${template.name}`,
       message: `feat: add ${template.name} PR template`,
       content: Buffer.from(template.content).toString("base64"),
       branch: branch.data.ref,
@@ -122,6 +122,4 @@ export async function script(
     base: repository.default_branch,
   });
   octokit.log.info({ pull: pull }, "pull");
-
-
 }

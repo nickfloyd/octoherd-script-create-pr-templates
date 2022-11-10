@@ -7,6 +7,8 @@
 
 ## Usage
 
+Create a `pull_request_template.md` with your own PR template content. Then run the following using the `--templateDirectory` parameter to source your local template file(s).
+
 Minimal usage
 
 ```js
@@ -25,7 +27,7 @@ npx octoherd-script-create-pr-templates \
   --templateDirectory $(pwd)/templates
 ```
 
-NOTE: This script assumes the standard "hidden" directory structure in the target repo(s) - i.e. .github/PULL_REQUEST_TEMPLATE as defined [here](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository)
+NOTE: This script assumes the standard "hidden" directory structure in the target repo(s) - i.e. .github/ as defined [here](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository)
 
 ## Options
 
