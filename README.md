@@ -1,5 +1,3 @@
-# 🚧 WORK IN PROGRESS. See [#1](https://github.com/nickfloyd/octoherd-script-create-pr-templates/pull/1) | [Preview](https://github.com/nickfloyd/octoherd-script-create-pr-templates/tree/initial-version)
-
 # octoherd-script-create-pr-templates
 
 > Creates PRs to add issue templates across repositories
