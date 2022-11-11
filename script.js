@@ -11,13 +11,16 @@ import path from 'path';
  * @param {import('@octoherd/cli').Repository} repository
  * @param {object} options
  * @param {string} options.templateDirectory The location of the template directory on a local instance
+ * @param {string} options.labelName The label you'd like to add to the PR
  */
-export async function script(
-  octokit,
-  repository,
-  { templateDirectory }
-) {
-  // get list of all files in templates directory
+export async function script(octokit, repository, options) {
+
+  if (!options.templateDirectory) {
+    throw new Error("--templateDirectory is required");
+  }
+
+  const templateDirectory = options.templateDirectory
+  const labelName = options.labelName || "";
   const files = fs.readdirSync(templateDirectory);
   const [repoOwner, repoName] = repository.full_name.split("/");
 
@@ -36,90 +39,115 @@ export async function script(
     })
   );
 
-  // get SHA of latest default branch commit
-  const { data: { object: { sha } } } = await octokit.request("GET /repos/{owner}/{repo}/git/ref/{ref}", {
+  // get the Repo to ensure that it's able to receive PRs
+  const { data: { archived } } = await octokit.request("GET /repos/{owner}/{repo}", {
     owner: repoOwner,
     repo: repoName,
-    ref: `heads/${repository.default_branch}`,
-  });
+  }); 
 
-  // come up with branch name based on the current date. remove all spaces, colons, parentheses, and periods
-  let branchName = `octoherd/${new Date().toString().replace(/ /g, '-').replace(/:/g, '-').replace(/\(/g, '-').replace(/\)/g, '-').replace(/\./g, '-')}`;
+  if (!archived) {
 
-  // only take the first part of branchName before "-GMT"
-  branchName = branchName.split('-GMT')[0];
+    // get SHA of latest default branch commit
+    const { data: { object: { sha } } } = await octokit.request("GET /repos/{owner}/{repo}/git/ref/{ref}", {
+      owner: repoOwner,
+      repo: repoName,
+      ref: `heads/${repository.default_branch}`,
+    });
 
-  // lowercase the branchName
-  branchName = branchName.toLowerCase();
+    // come up with branch name based on the current date. remove all spaces, colons, parentheses, and periods
+    let branchName = `octoherd/${new Date().toString().replace(/ /g, '-').replace(/:/g, '-').replace(/\(/g, '-').replace(/\)/g, '-').replace(/\./g, '-')}`;
 
-  // create a branch off of the latest SHA
-  const branch = await octokit.request("POST /repos/{owner}/{repo}/git/refs", {
-    owner: repository.owner.login,
-    repo: repository.name,
-    ref: `refs/heads/${branchName}`,
-    sha: sha,
-  });
+    // only take the first part of branchName before "-GMT"
+    branchName = branchName.split('-GMT')[0];
 
-  let existingPRTemplates;
-  try {
-    // check to see if a file in the .github/ directory with the same name already exists
-    const { data: existingFiles } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+    // lowercase the branchName
+    branchName = branchName.toLowerCase();
+
+    octokit.log.info(`sha: ${sha}`)
+
+    // create a branch off of the latest SHA
+    const branch = await octokit.request("POST /repos/{owner}/{repo}/git/refs", {
       owner: repository.owner.login,
       repo: repository.name,
-      path: '.github/pull_request_template.md',
+      ref: `refs/heads/${branchName}`,
+      sha: sha,
     });
-    existingPRTemplates = existingFiles;
 
-    octokit.log.info(`PR templates exist: ${existingFiles}`)
+    octokit.log.info(`Branch: ${branch}`)
 
-  } catch (e) {
-    if (e.status !== 404) {
-      throw e;
+    let existingPRTemplate = {};
+    try {
+      // check to see if a file in the .github/ directory with the same name already exists
+      // This should only ever return one result given it's always looking for pull_request_template.md
+      const { data: existingFile } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+        owner: repository.owner.login,
+        repo: repository.name,
+        path: '.github/pull_request_template.md',
+      });
+      existingPRTemplate = existingFile;
+
+      octokit.log.info(`PR templates exist: ${existingFile}`)
+
+    } catch (e) {
+      if (e.status !== 404) {
+        throw e;
+      }
     }
-    existingPRTemplates = [];
-  }
 
-  // if PR templates exist and we would overwrite them, we need to remove those files first
-  // so the automation can recreate them.
-  if (existingPRTemplates.length > 0) {
-    for (let i = 0; i < existingPRTemplates.length; i++) {
+    // if PR templates exist and we would overwrite them, we need to remove those files first
+    // so the automation can recreate it
+
+    if (Object.keys(existingPRTemplate).length > 0) {
       for (let j = 0; j < templates.length; j++) {
-        if (existingPRTemplates[i].name === templates[j].name) {
+        if (existingPRTemplate.name === templates[j].name) {
           octokit.log.info(`Deleting existing PR template: ${templates[j].name}`)
           // delete the file
           await octokit.request("DELETE /repos/{owner}/{repo}/contents/{path}", {
             owner: repository.owner.login,
             repo: repository.name,
-            path: `.github/${existingPRTemplates[i].name}`,
+            path: `.github/${existingPRTemplate.name}`,
             branch: branchName,
-            message: `octoherd: delete ${existingPRTemplates[i].name}`,
-            sha: existingPRTemplates[i].sha,
+            message: `octoherd: delete ${existingPRTemplate.name}`,
+            sha: existingPRTemplate.sha,
           });
         }
       }
     }
-  }
 
-  // iterate through templates and add each to the branch "octoherd-script-PR"
-  for (const template of templates) {
-    await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}", {
+    // iterate through templates and add each to the branch "octoherd-script-PR"
+    for (const template of templates) {
+      await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}", {
+        owner: repository.owner.login,
+        repo: repository.name,
+        path: `.github/${template.name}`,
+        message: `feat: add ${template.name} PR template`,
+        content: Buffer.from(template.content).toString("base64"),
+        branch: branch.data.ref,
+      });
+    }
+
+    // create a PR with a new PR templates
+    const { data: pull } = await octokit.request("POST /repos/{owner}/{repo}/pulls", {
       owner: repository.owner.login,
       repo: repository.name,
-      path: `.github/${template.name}`,
-      message: `feat: add ${template.name} PR template`,
-      content: Buffer.from(template.content).toString("base64"),
-      branch: branch.data.ref,
+      title: "Add PR templates",
+      body: "This PR adds our standardized PR templates.",
+      head: branchName,
+      base: repository.default_branch,
     });
-  }
 
-  // create a PR with a new PR templates
-  const { data: pull } = await octokit.request("POST /repos/{owner}/{repo}/pulls", {
-    owner: repository.owner.login,
-    repo: repository.name,
-    title: "Add PR templates",
-    body: "This PR adds our standardized PR templates.",
-    head: branchName,
-    base: repository.default_branch,
-  });
-  octokit.log.info({ pull: pull }, "pull");
+    octokit.log.info({ pull: pull.issue_url }, "pull issue url");
+
+
+    // Add a label to the PR if one was provided
+    // i.e. 'Type: Maintenance'
+    if(labelName.length > 0) {
+      await octokit.request("POST " + pull.issue_url, {
+        labels: [
+          labelName,
+        ]
+      });
+      octokit.log.info(`Created label named: ${labelName} on PR: ${pull.issue_url}`)
+    }
+  }
 }
