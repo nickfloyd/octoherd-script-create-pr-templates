@@ -11,13 +11,16 @@ import path from 'path';
  * @param {import('@octoherd/cli').Repository} repository
  * @param {object} options
  * @param {string} options.templateDirectory The location of the template directory on a local instance
+ * @param {string} options.labelName The label you'd like to add to the PR
  */
-export async function script(
-  octokit,
-  repository,
-  { templateDirectory }
-) {
-  // get list of all files in templates directory
+export async function script(octokit, repository, options) {
+
+  if (!options.templateDirectory) {
+    throw new Error("--templateDirectory is required");
+  }
+
+  const templateDirectory = options.templateDirectory
+  const labelName = options.labelName || "";
   const files = fs.readdirSync(templateDirectory);
   const [repoOwner, repoName] = repository.full_name.split("/");
 
@@ -131,20 +134,20 @@ export async function script(
       body: "This PR adds our standardized PR templates.",
       head: branchName,
       base: repository.default_branch,
-      labels: [
-        'Type: Maintenance'
-      ]
     });
 
     octokit.log.info({ pull: pull.issue_url }, "pull issue url");
 
 
-    // Add a label to the PR
-    await octokit.request("POST " + pull.issue_url, {
-      labels: [
-        'Type: Maintenance',
-      ]
-    });
-    octokit.log.info({ pull: pull }, "pull");
+    // Add a label to the PR if one was provided
+    // i.e. 'Type: Maintenance'
+    if(labelName.length > 0) {
+      await octokit.request("POST " + pull.issue_url, {
+        labels: [
+          labelName,
+        ]
+      });
+      octokit.log.info(`Created label named: ${labelName} on PR: ${pull.issue_url}`)
+    }
   }
 }
